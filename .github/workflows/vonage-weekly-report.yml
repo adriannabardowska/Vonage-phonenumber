@@ -31,7 +31,9 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           START_DATE_HISTORY: "2025-11-01"
           START_DATE_SMS: "2025-11-01T00:00:00Z"
-        run: python3 vonage_summary.py
+        run: |
+          set -o pipefail
+          python3 vonage_summary.py 2>&1 | tee run.log
 
       - name: Persist snapshot changes
         run: |
@@ -55,5 +57,14 @@ jobs:
           path: |
             vonage_analytics_*.xlsx
             vonage_analytics_*_*.csv
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload execution log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vonage-log-${{ github.run_number }}
+          path: run.log
           if-no-files-found: warn
           retention-days: 14
