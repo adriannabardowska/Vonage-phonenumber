@@ -849,6 +849,11 @@ def merge_with_snapshot(df_fresh, df_snapshot):
         df_fresh.to_csv(SNAPSHOT_FILE, index=False)
         return df_fresh
 
+    # Normalize date columns to datetime to avoid dtype assignment issues in CI.
+    for col in ['Purchase Date', 'Cancel Date']:
+        if col in df_snapshot.columns:
+            df_snapshot[col] = pd.to_datetime(df_snapshot[col], errors='coerce')
+
     snapshot_msisdns = set(df_snapshot['MSISDN'].astype(str))
     fresh_msisdns = set(df_fresh['MSISDN'].astype(str))
 
@@ -864,18 +869,18 @@ def merge_with_snapshot(df_fresh, df_snapshot):
     disappeared = snapshot_active[~snapshot_active['MSISDN'].astype(str).isin(fresh_active_msisdns)]
 
     if len(disappeared) > 0:
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = pd.Timestamp(datetime.now().date())
         df_snapshot.loc[disappeared.index, 'Status'] = 'Cancelled'
         # Only set cancel date if not already set
         no_cancel_date = df_snapshot.loc[disappeared.index, 'Cancel Date'].isna()
         df_snapshot.loc[disappeared.index[no_cancel_date], 'Cancel Date'] = today
-        print(f"   Numbers cancelled since last run: {len(disappeared)} (cancel date: {today})")
+        print(f"   Numbers cancelled since last run: {len(disappeared)} (cancel date: {today.date()})")
 
     # Update status of snapshot numbers that are still active in API
     # (in case they were previously marked cancelled by inference but are actually still active)
     still_active = df_snapshot['MSISDN'].astype(str).isin(fresh_active_msisdns)
     df_snapshot.loc[still_active, 'Status'] = 'Active'
-    df_snapshot.loc[still_active, 'Cancel Date'] = None
+    df_snapshot.loc[still_active, 'Cancel Date'] = pd.NaT
 
     # Merge: snapshot + new numbers
     df_merged = pd.concat([df_snapshot, new_numbers], ignore_index=True)
