@@ -1,0 +1,59 @@
+name: Vonage Weekly Report
+
+on:
+  schedule:
+    - cron: "0 9 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Vonage report
+        env:
+          VONAGE_API_KEY: ${{ secrets.VONAGE_API_KEY }}
+          VONAGE_API_SECRET: ${{ secrets.VONAGE_API_SECRET }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          START_DATE_HISTORY: "2025-11-01"
+          START_DATE_SMS: "2025-11-01T00:00:00Z"
+        run: python3 vonage_summary.py
+
+      - name: Persist snapshot changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -f "vonage_numbers_snapshot.csv" ]; then
+            git add vonage_numbers_snapshot.csv
+          fi
+          if git diff --cached --quiet; then
+            echo "No snapshot changes to commit."
+          else
+            git commit -m "chore: update vonage snapshot [skip ci]"
+            git push
+          fi
+
+      - name: Upload generated reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vonage-report-${{ github.run_number }}
+          path: |
+            vonage_analytics_*.xlsx
+            vonage_analytics_*_*.csv
+          if-no-files-found: warn
+          retention-days: 14

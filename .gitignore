@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.log
+phone_number/
+vonage_numbers_raw.csv
+vonage_sms_raw.csv
+vonage_analytics_*.xlsx
+vonage_analytics_*_*.csv
